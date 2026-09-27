@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from django.core.paginator import Paginator
 from .models import Genotype
-from .forms import GenotypeRequestForm
+from .forms import GenotypeSearchForm
 
-def find_genotype(request):
-    form = GenotypeRequestForm(request.GET or None)
+def genotype_search(request):
+    form = GenotypeSearchForm(request.GET or None)
     page = None
     if form.is_valid():
         f = form.cleaned_data
@@ -13,6 +13,6 @@ def find_genotype(request):
             genotypes = genotypes.filter(sample=f["sample"])
         paginator = Paginator(genotypes, 50)
         page = paginator.get_page(request.GET.get("page"))
-    return render(request, "find_genotype/find_genotype.html", {"page": page, "form": form})
+    return render(request, "find_genotype/genotype_search.html", {"page": page, "form": form})
     
 
