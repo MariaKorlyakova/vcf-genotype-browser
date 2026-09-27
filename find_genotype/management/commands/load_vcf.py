@@ -3,13 +3,15 @@ from django.core.management.base import BaseCommand, CommandError
 from pathlib import Path
 from django.db import transaction
 import gzip
+from collections.abc import Callable, Iterator
+from typing import Any, TextIO
 
-def dot_to_none(arg, to_type=str):
-    if arg == ".":
+def dot_to_none(value: str, to_type: Callable = str) -> Any:
+    if value == ".":
         return None
-    return to_type(arg)
+    return to_type(value)
     
-def take_batch(iterator, batch_size):
+def take_batch(iterator: Iterator, batch_size: int) -> list:
     batch = []
     for i in iterator:
         batch.append(i)
@@ -17,8 +19,7 @@ def take_batch(iterator, batch_size):
             return batch
     return batch
 
-def parse_header_contig(line):
-    ##contig=<ID=chr1,length=248956422,assembly=human_GRCh38_no_alt_analysis_set.fasta>
+def parse_header_contig(line: str) -> dict[str, str]:
     line = line.removeprefix("##contig=<").removesuffix(">")
     fields = {}
     all_fields = line.split(",")
@@ -27,7 +28,7 @@ def parse_header_contig(line):
 
     return fields
 
-def open_vcf(path):
+def open_vcf(path: Path) -> TextIO:
     if not path.is_file():
         raise CommandError(f"File {path} does not exist.")
     if path.suffix == ".gz":
@@ -36,7 +37,7 @@ def open_vcf(path):
         open_function = open
     return open_function(path, "rt")
 
-def parse_header(file):
+def parse_header(file: TextIO) -> tuple[dict[str, int | None], str, list[str]]:
     chrom_len_dict = {}
     assembly = ''
     samples = []
@@ -56,7 +57,7 @@ def parse_header(file):
     return chrom_len_dict, assembly, samples
         
         
-def iter_genotypes(file, get_chrom, samples):
+def iter_genotypes(file: TextIO, get_chrom: Callable, samples: list[Sample]) -> Iterator[tuple[Coordinate, list[Genotype]]]:
     for line_number, line in enumerate(file, start=1):
         line = line.rstrip("\n")
         if not line.startswith("#") and line:
@@ -85,7 +86,7 @@ def iter_genotypes(file, get_chrom, samples):
                             genotype_quality=gq, qual=qual_value, filter=filter_value, info=info_value))
             yield coord, genotypes
 
-def save_coordinates_and_link(batch):
+def save_coordinates_and_link(batch: list) -> list[Genotype]:
     coords_by_key = {}
     positions = []
     chromosome_ids = set()
@@ -123,7 +124,7 @@ class Command(BaseCommand):
         parser.add_argument("path_to_vcf", help="Enter path to vcf file")
         parser.add_argument("--assembly", default=None, help="Assembly name, e.g. GRCh38")
         
-    def handle(self, *args, **options):
+    def handle(self, *args, **options) -> None:
         path_to_vcf = Path(options["path_to_vcf"])
         with open_vcf(path_to_vcf) as vcf:
             chrom_lengths, assembly, samples = parse_header(vcf)
