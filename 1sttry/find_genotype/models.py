@@ -15,9 +15,13 @@ class Genotype(models.Model):
     allel_depth_all = models.TextField(null=True)
     allel_depth_nofilt = models.TextField(null=True)
     genotype_quality = models.IntegerField(null=True)
+    qual = models.FloatField(null=True)
+    filter = models.TextField(null=True)
+    info = models.TextField(null=True)
     
     class Meta:
         constraints = [models.UniqueConstraint(fields=["coordinate", "sample"], name="unique_genotype")]
+        ordering = ["coordinate__pos", "sample"]
         
     def __str__(self):
         return f"{self.sample} {self.coordinate}"
@@ -31,10 +35,8 @@ class Coordinate(models.Model):
     pos = models.IntegerField()
     uid = models.TextField(null=True)
     ref = models.TextField()
-    alt = models.TextField(null=True)
-    qual = models.FloatField(null=True)
-    filter = models.TextField(null=True)
-    info = models.TextField(null=True)
+    alt = models.TextField()
+
     
     class Meta:
         constraints = [models.UniqueConstraint(fields=["chromosome", "pos", "ref", "alt"], name="unique_variant")]

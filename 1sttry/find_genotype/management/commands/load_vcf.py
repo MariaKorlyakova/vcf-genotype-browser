@@ -42,7 +42,7 @@ def parse_header(file):
     samples = []
     for line in file:
         if line.startswith("#"):
-            line = line.rstrip()
+            line = line.rstrip("\n")
             if line.startswith("##contig") and line:
                 parsed_header = parse_header_contig(line)
                 chrom = parsed_header.get("ID")
@@ -58,16 +58,18 @@ def parse_header(file):
         
 def iter_genotypes(file, get_chrom, samples):
     for n, line in enumerate(file, start=1):
-        line = line.rstrip()
+        line = line.rstrip("\n")
         if not line.startswith("#") and line:
             line_parsed = line.split("\t")
             if len(line_parsed) != len(samples) + 9:
                 raise CommandError(f"Got {len(line_parsed)} columns in line {n}, expected {len(samples) + 9}.")
             chrom, pos, uid, ref, alt, qual, filt, inf, form, *sample_cols = line_parsed
             pos = int(pos)
+            qual_value=dot_to_none(qual, float)
+            filter_value=dot_to_none(filt)
+            info_value=dot_to_none(inf)
             coord = Coordinate(chromosome=get_chrom(chrom), pos=pos, uid=dot_to_none(uid),
-                             ref=ref, alt=dot_to_none(alt), qual=dot_to_none(qual, float),
-                             filter=dot_to_none(filt), info=dot_to_none(inf))
+                             ref=ref, alt=alt)
             g_list = []
             for sample_obj, col in zip(samples, sample_cols):
                 parsed_format = dict(zip(form.split(":"), col.split(":")))
@@ -77,18 +79,25 @@ def iter_genotypes(file, get_chrom, samples):
                 adall = dot_to_none(parsed_format.get("ADALL", "."))
                 ad = dot_to_none(parsed_format.get("AD", "."))
                 gq = dot_to_none(parsed_format.get("GQ", "."), int)
+
                 g_list.append(Genotype(sample=sample_obj, gt=genot, phase_set=ps,
-                            depth=dp, allel_depth_all=adall, allel_depth_nofilt=ad, genotype_quality=gq))
+                            depth=dp, allel_depth_all=adall, allel_depth_nofilt=ad,
+                            genotype_quality=gq, qual=qual_value, filter=filter_value, info=info_value))
             yield coord, g_list
 
 def check_coord_presence(c_g_batch):
     coord_new = {}
     existing_pos = []
+    chrom_of_exist_pos = set()
     for c, g in c_g_batch:
         key_new = (c.chromosome_id, c.pos, c.ref, c.alt)
-        coord_new[key_new] = (c, g)
+        if key_new in coord_new:
+            coord_new[key_new][1].extend(g)
+        else:
+            coord_new[key_new] = (c, list(g))
         existing_pos.append(c.pos)
-    coord_req = Coordinate.objects.filter(pos__in=existing_pos)
+        chrom_of_exist_pos.add(c.chromosome_id)
+    coord_req = Coordinate.objects.filter(chromosome_id__in=chrom_of_exist_pos, pos__in=existing_pos)
     coord_old = {}
     for i in coord_req:
         key_old = (i.chromosome_id, i.pos, i.ref, i.alt)
@@ -112,11 +121,15 @@ class Command(BaseCommand):
     
     def add_arguments(self, parser):
         parser.add_argument("path_to_vcf", help="Enter path to vcf file")
-        
+        parser.add_argument("--assembly", default=None, help="Assembly name, e.g. GRCh38")    
     def handle(self, *args, **options):
         path_to_vcf = Path(options["path_to_vcf"])
         with open_vcf(path_to_vcf) as vcf:
             chrom_len_d, assembly, samples = parse_header(vcf)
+            if options["assembly"]:
+                assembly = options["assembly"]
+            if not assembly:
+                assembly = "unknown"
             if len(samples) == 0:
                 raise CommandError(f"File {path_to_vcf.name} has no sample columns.")
             with transaction.atomic():

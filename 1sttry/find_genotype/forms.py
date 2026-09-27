@@ -1,9 +1,9 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from .models import Sample
+from .models import Sample, Chromosome
 
 class GenotypeRequestForm(forms.Form):
-    chrom = forms.CharField(label="Input chromosome number (example chr1)", max_length=50)
+    chrom = forms.ModelChoiceField(queryset=Chromosome.objects.all(), empty_label="(Choose chromosome)")
     start = forms.IntegerField(label="Input start position", min_value=1)
     end = forms.IntegerField(label="Input end position", min_value=1)
     sample = forms.ModelChoiceField(queryset=Sample.objects.all(), empty_label="(All samples)", required=False)

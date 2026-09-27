@@ -51,12 +51,12 @@
                                     <details>
                                         <summary>Read more</summary>
                                         ID: {{ genotype.coordinate.uid|default_if_none:"—" }}<br>
-                                        QUAL: {{ genotype.coordinate.qual|default_if_none:"—" }}<br>
-                                        FILTER: {{ genotype.coordinate.filter|default_if_none:"—" }}<br>
+                                        QUAL: {{ genotype.qual|default_if_none:"—" }}<br>
+                                        FILTER: {{ genotype.filter|default_if_none:"—" }}<br>
                                         PS: {{ genotype.phase_set|default_if_none:"—" }}<br>
                                         ADALL: {{ genotype.allel_depth_all|default_if_none:"—" }}<br>
                                         AD: {{ genotype.allel_depth_nofilt|default_if_none:"—" }}<br>
-                                        INFO: {{ genotype.coordinate.info|default_if_none:"—" }}
+                                        INFO: {{ genotype.info|default_if_none:"—" }}
                                     </details>
                                 </td>
                             </tr>
@@ -74,7 +74,7 @@
                         {% endif %}
 
                         Page {{ page.number }} of {{ page.paginator.num_pages }},
-                        found {{ page.paginator.count }} page
+                        found {{ page.paginator.count }} genotypes
 
                         {% if page.has_next %}
                             <a href="{% querystring page=page.next_page_number %}">Next</a>
