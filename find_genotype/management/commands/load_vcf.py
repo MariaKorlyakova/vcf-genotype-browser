@@ -98,7 +98,7 @@ def iter_genotypes(
             coord = Coordinate(
                 chromosome=get_chrom(chrom),
                 pos=pos,
-                uid=dot_to_none(uid),
+                variant_id=dot_to_none(uid),
                 ref=ref,
                 alt=alt,
             )
@@ -118,8 +118,8 @@ def iter_genotypes(
                         gt=gt_value,
                         phase_set=ps,
                         depth=dp,
-                        allel_depth_all=adall,
-                        allel_depth_nofilt=ad,
+                        allele_depth_all=adall,
+                        allele_depth_nofilt=ad,
                         genotype_quality=gq,
                         qual=qual_value,
                         filter=filter_value,
@@ -182,19 +182,15 @@ class Command(BaseCommand):
             if len(samples) == 0:
                 raise CommandError(f"File {path_to_vcf.name} has no sample columns.")
             with transaction.atomic():
-                assembly_obj, _ = Assembly.objects.get_or_create(assembly_uid=assembly)
+                assembly_obj, _ = Assembly.objects.get_or_create(name=assembly)
                 chrom_obj_dict = {}
-                for chrom, length in chrom_lengths.items():
-                    chrom_obj, _ = Chromosome.objects.get_or_create(
-                        assembly=assembly_obj, chrom=chrom, defaults={"length": length}
-                    )
-                    chrom_obj_dict[chrom] = chrom_obj
 
                 def get_chrom(name):
                     if name in chrom_obj_dict:
                         return chrom_obj_dict[name]
                     chrom_obj, _ = Chromosome.objects.get_or_create(
-                        assembly=assembly_obj, chrom=name
+                        assembly=assembly_obj, name=name,
+                        defaults={"length": chrom_lengths.get(name)},
                     )
                     chrom_obj_dict[name] = chrom_obj
                     return chrom_obj
@@ -202,7 +198,7 @@ class Command(BaseCommand):
                 sample_objs = []
                 for sample_name in samples:
                     sample_obj, created_samp = Sample.objects.get_or_create(
-                        sample_uid=sample_name, defaults={"file_name": path_to_vcf.name}
+                        name=sample_name, defaults={"file_name": path_to_vcf.name}
                     )
                     if not created_samp:
                         raise CommandError(

@@ -39,8 +39,8 @@
                     <tbody>
                         {% for genotype in page %}
                             <tr>
-                                <td>{{ genotype.sample.sample_uid }}</td>
-                                <td>{{ genotype.coordinate.chromosome.chrom }}</td>
+                                <td>{{ genotype.sample.name }}</td>
+                                <td>{{ genotype.coordinate.chromosome.name }}</td>
                                 <td>{{ genotype.coordinate.pos }}</td>
                                 <td>{{ genotype.coordinate.ref }}</td>
                                 <td>{{ genotype.coordinate.alt }}</td>
@@ -50,12 +50,12 @@
                                 <td>
                                     <details>
                                         <summary>Read more</summary>
-                                        ID: {{ genotype.coordinate.uid|default_if_none:"—" }}<br>
+                                        ID: {{ genotype.coordinate.variant_id|default_if_none:"—" }}<br>
                                         QUAL: {{ genotype.qual|default_if_none:"—" }}<br>
                                         FILTER: {{ genotype.filter|default_if_none:"—" }}<br>
                                         PS: {{ genotype.phase_set|default_if_none:"—" }}<br>
-                                        ADALL: {{ genotype.allel_depth_all|default_if_none:"—" }}<br>
-                                        AD: {{ genotype.allel_depth_nofilt|default_if_none:"—" }}<br>
+                                        ADALL: {{ genotype.allele_depth_all|default_if_none:"—" }}<br>
+                                        AD: {{ genotype.allele_depth_nofilt|default_if_none:"—" }}<br>
                                         INFO: {{ genotype.info|default_if_none:"—" }}
                                     </details>
                                 </td>

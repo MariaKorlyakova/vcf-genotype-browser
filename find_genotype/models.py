@@ -13,8 +13,8 @@ class Genotype(models.Model):
     gt = models.TextField(null=True)
     phase_set = models.IntegerField(null=True)
     depth = models.IntegerField(null=True)
-    allel_depth_all = models.TextField(null=True)
-    allel_depth_nofilt = models.TextField(null=True)
+    allele_depth_all = models.TextField(null=True)
+    allele_depth_nofilt = models.TextField(null=True)
     genotype_quality = models.IntegerField(null=True)
     qual = models.FloatField(null=True)
     filter = models.TextField(null=True)
@@ -38,7 +38,7 @@ class Coordinate(models.Model):
         on_delete=models.PROTECT,
     )
     pos = models.IntegerField()
-    uid = models.TextField(null=True)
+    variant_id = models.TextField(null=True)
     ref = models.TextField()
     alt = models.TextField()
 
@@ -58,28 +58,28 @@ class Chromosome(models.Model):
         "Assembly",
         on_delete=models.PROTECT,
     )
-    chrom = models.TextField()
+    name = models.TextField()
     length = models.IntegerField(null=True)
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["assembly", "chrom"], name="unique_chrom")
+            models.UniqueConstraint(fields=["assembly", "name"], name="unique_chrom")
         ]
 
     def __str__(self):
-        return self.chrom
+        return self.name
 
 
 class Assembly(models.Model):
-    assembly_uid = models.TextField(unique=True)
+    name = models.TextField(unique=True)
 
     def __str__(self):
-        return self.assembly_uid
+        return self.name
 
 
 class Sample(models.Model):
-    sample_uid = models.TextField(unique=True)
+    name = models.TextField(unique=True)
     file_name = models.TextField()
 
     def __str__(self):
-        return self.sample_uid
+        return self.name
