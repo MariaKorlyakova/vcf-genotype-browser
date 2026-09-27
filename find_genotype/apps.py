@@ -2,5 +2,5 @@ from django.apps import AppConfig
 
 
 class FindGenotypeConfig(AppConfig):
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'find_genotype'
+    default_auto_field = "django.db.models.BigAutoField"
+    name = "find_genotype"

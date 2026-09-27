@@ -5,78 +5,146 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Assembly',
+            name="Assembly",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('assembly_uid', models.TextField(unique=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("assembly_uid", models.TextField(unique=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Sample',
+            name="Sample",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('sample_uid', models.TextField(unique=True)),
-                ('file_name', models.TextField()),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("sample_uid", models.TextField(unique=True)),
+                ("file_name", models.TextField()),
             ],
         ),
         migrations.CreateModel(
-            name='Chromosome',
+            name="Chromosome",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('chrom', models.TextField()),
-                ('length', models.IntegerField(null=True)),
-                ('assembly', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='find_genotype.assembly')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("chrom", models.TextField()),
+                ("length", models.IntegerField(null=True)),
+                (
+                    "assembly",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="find_genotype.assembly",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='Coordinate',
+            name="Coordinate",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('pos', models.IntegerField()),
-                ('uid', models.TextField(null=True)),
-                ('ref', models.TextField()),
-                ('alt', models.TextField()),
-                ('chromosome', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to='find_genotype.chromosome')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("pos", models.IntegerField()),
+                ("uid", models.TextField(null=True)),
+                ("ref", models.TextField()),
+                ("alt", models.TextField()),
+                (
+                    "chromosome",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="find_genotype.chromosome",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='Genotype',
+            name="Genotype",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('gt', models.TextField(null=True)),
-                ('phase_set', models.IntegerField(null=True)),
-                ('depth', models.IntegerField(null=True)),
-                ('allel_depth_all', models.TextField(null=True)),
-                ('allel_depth_nofilt', models.TextField(null=True)),
-                ('genotype_quality', models.IntegerField(null=True)),
-                ('qual', models.FloatField(null=True)),
-                ('filter', models.TextField(null=True)),
-                ('info', models.TextField(null=True)),
-                ('coordinate', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='find_genotype.coordinate')),
-                ('sample', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='find_genotype.sample')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("gt", models.TextField(null=True)),
+                ("phase_set", models.IntegerField(null=True)),
+                ("depth", models.IntegerField(null=True)),
+                ("allel_depth_all", models.TextField(null=True)),
+                ("allel_depth_nofilt", models.TextField(null=True)),
+                ("genotype_quality", models.IntegerField(null=True)),
+                ("qual", models.FloatField(null=True)),
+                ("filter", models.TextField(null=True)),
+                ("info", models.TextField(null=True)),
+                (
+                    "coordinate",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="find_genotype.coordinate",
+                    ),
+                ),
+                (
+                    "sample",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="find_genotype.sample",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['coordinate__pos', 'sample'],
+                "ordering": ["coordinate__pos", "sample"],
             },
         ),
         migrations.AddConstraint(
-            model_name='chromosome',
-            constraint=models.UniqueConstraint(fields=('assembly', 'chrom'), name='unique_chrom'),
+            model_name="chromosome",
+            constraint=models.UniqueConstraint(
+                fields=("assembly", "chrom"), name="unique_chrom"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='coordinate',
-            constraint=models.UniqueConstraint(fields=('chromosome', 'pos', 'ref', 'alt'), name='unique_variant'),
+            model_name="coordinate",
+            constraint=models.UniqueConstraint(
+                fields=("chromosome", "pos", "ref", "alt"), name="unique_variant"
+            ),
         ),
         migrations.AddConstraint(
-            model_name='genotype',
-            constraint=models.UniqueConstraint(fields=('coordinate', 'sample'), name='unique_genotype'),
+            model_name="genotype",
+            constraint=models.UniqueConstraint(
+                fields=("coordinate", "sample"), name="unique_genotype"
+            ),
         ),
     ]

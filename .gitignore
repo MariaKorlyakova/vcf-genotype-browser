@@ -19,3 +19,6 @@ db.sqlite3
 .vscode/
 .idea/
 .DS_Store
+
+#ruff
+.ruff_cache/

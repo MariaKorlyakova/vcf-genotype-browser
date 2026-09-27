@@ -1,12 +1,12 @@
 import gzip
-from pathlib import Path
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any, TextIO
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from find_genotype.models import Sample, Chromosome, Assembly, Coordinate, Genotype
+from find_genotype.models import Assembly, Chromosome, Coordinate, Genotype, Sample
 
 
 def dot_to_none(value: str, to_type: Callable = str) -> Any:
@@ -54,30 +54,54 @@ def parse_header(file: TextIO) -> tuple[dict[str, int | None], str, list[str]]:
             if line.startswith("##contig") and line:
                 contig_fields = parse_header_contig(line)
                 chrom = contig_fields.get("ID")
-                length = int(contig_fields.get("length")) if contig_fields.get("length") else None
+                length = (
+                    int(contig_fields.get("length"))
+                    if contig_fields.get("length")
+                    else None
+                )
                 chrom_lengths[chrom] = length
                 if assembly == "":
                     assembly = contig_fields.get("assembly")
             if line.startswith("#CHROM") and line:
-                samples =  line.split("\t")[9:]
+                samples = line.split("\t")[9:]
                 break
     return chrom_lengths, assembly, samples
 
 
-def iter_genotypes(file: TextIO, get_chrom: Callable, samples: list[Sample]) -> Iterator[tuple[Coordinate, list[Genotype]]]:
+def iter_genotypes(
+    file: TextIO, get_chrom: Callable, samples: list[Sample]
+) -> Iterator[tuple[Coordinate, list[Genotype]]]:
     for line_number, line in enumerate(file, start=1):
         line = line.rstrip("\n")
         if not line.startswith("#") and line:
             columns = line.split("\t")
             if len(columns) != len(samples) + 9:
-                raise CommandError(f"Got {len(columns)} columns in line {line_number}, expected {len(samples) + 9}.")
-            chrom, pos, uid, ref, alt, qual, filt, info_raw, format_keys, *sample_cols = columns
+                raise CommandError(
+                    f"Got {len(columns)} columns in line {line_number}, expected {len(samples) + 9}."
+                )
+            (
+                chrom,
+                pos,
+                uid,
+                ref,
+                alt,
+                qual,
+                filt,
+                info_raw,
+                format_keys,
+                *sample_cols,
+            ) = columns
             pos = int(pos)
             qual_value = dot_to_none(qual, float)
             filter_value = dot_to_none(filt)
             info_value = dot_to_none(info_raw)
-            coord = Coordinate(chromosome=get_chrom(chrom), pos=pos, uid=dot_to_none(uid),
-                             ref=ref, alt=alt)
+            coord = Coordinate(
+                chromosome=get_chrom(chrom),
+                pos=pos,
+                uid=dot_to_none(uid),
+                ref=ref,
+                alt=alt,
+            )
             genotypes = []
             for sample_obj, sample_col in zip(samples, sample_cols):
                 parsed_format = dict(zip(format_keys.split(":"), sample_col.split(":")))
@@ -88,9 +112,20 @@ def iter_genotypes(file: TextIO, get_chrom: Callable, samples: list[Sample]) -> 
                 ad = dot_to_none(parsed_format.get("AD", "."))
                 gq = dot_to_none(parsed_format.get("GQ", "."), int)
 
-                genotypes.append(Genotype(sample=sample_obj, gt=gt_value, phase_set=ps,
-                            depth=dp, allel_depth_all=adall, allel_depth_nofilt=ad,
-                            genotype_quality=gq, qual=qual_value, filter=filter_value, info=info_value))
+                genotypes.append(
+                    Genotype(
+                        sample=sample_obj,
+                        gt=gt_value,
+                        phase_set=ps,
+                        depth=dp,
+                        allel_depth_all=adall,
+                        allel_depth_nofilt=ad,
+                        genotype_quality=gq,
+                        qual=qual_value,
+                        filter=filter_value,
+                        info=info_value,
+                    )
+                )
             yield coord, genotypes
 
 
@@ -106,7 +141,9 @@ def save_coordinates_and_link(batch: list) -> list[Genotype]:
             coords_by_key[key] = (coord, list(genotypes))
         positions.append(coord.pos)
         chromosome_ids.add(coord.chromosome_id)
-    found_coords = Coordinate.objects.filter(chromosome_id__in=chromosome_ids, pos__in=positions)
+    found_coords = Coordinate.objects.filter(
+        chromosome_id__in=chromosome_ids, pos__in=positions
+    )
     known_coords = {}
     for coord in found_coords:
         key = (coord.chromosome_id, coord.pos, coord.ref, coord.alt)
@@ -130,7 +167,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("path_to_vcf", help="Enter path to vcf file")
-        parser.add_argument("--assembly", default=None, help="Assembly name, e.g. GRCh38")
+        parser.add_argument(
+            "--assembly", default=None, help="Assembly name, e.g. GRCh38"
+        )
 
     def handle(self, *args, **options) -> None:
         path_to_vcf = Path(options["path_to_vcf"])
@@ -146,19 +185,29 @@ class Command(BaseCommand):
                 assembly_obj, _ = Assembly.objects.get_or_create(assembly_uid=assembly)
                 chrom_obj_dict = {}
                 for chrom, length in chrom_lengths.items():
-                    chrom_obj, _ = Chromosome.objects.get_or_create(assembly=assembly_obj, chrom=chrom, defaults={"length": length})
+                    chrom_obj, _ = Chromosome.objects.get_or_create(
+                        assembly=assembly_obj, chrom=chrom, defaults={"length": length}
+                    )
                     chrom_obj_dict[chrom] = chrom_obj
+
                 def get_chrom(name):
                     if name in chrom_obj_dict:
                         return chrom_obj_dict[name]
-                    chrom_obj, _ = Chromosome.objects.get_or_create(assembly=assembly_obj, chrom=name)
+                    chrom_obj, _ = Chromosome.objects.get_or_create(
+                        assembly=assembly_obj, chrom=name
+                    )
                     chrom_obj_dict[name] = chrom_obj
                     return chrom_obj
+
                 sample_objs = []
                 for sample_name in samples:
-                    sample_obj, created_samp = Sample.objects.get_or_create(sample_uid=sample_name, defaults={"file_name": path_to_vcf.name})
+                    sample_obj, created_samp = Sample.objects.get_or_create(
+                        sample_uid=sample_name, defaults={"file_name": path_to_vcf.name}
+                    )
                     if not created_samp:
-                        raise CommandError(f"Sample {sample_name} is already in database.")
+                        raise CommandError(
+                            f"Sample {sample_name} is already in database."
+                        )
                     sample_objs.append(sample_obj)
                 gen_iter = iter_genotypes(vcf, get_chrom, sample_objs)
                 total_loaded = 0
@@ -170,4 +219,6 @@ class Command(BaseCommand):
                     Genotype.objects.bulk_create(genotypes)
                     total_loaded += len(genotypes)
                     self.stdout.write(f"Loaded {total_loaded}")
-            self.stdout.write(self.style.SUCCESS(f"All {total_loaded} genotypes loaded."))
+            self.stdout.write(
+                self.style.SUCCESS(f"All {total_loaded} genotypes loaded.")
+            )
