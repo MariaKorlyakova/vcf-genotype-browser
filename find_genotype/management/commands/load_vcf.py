@@ -1,16 +1,20 @@
-from find_genotype.models import Sample, Chromosome, Assembly, Coordinate, Genotype
-from django.core.management.base import BaseCommand, CommandError
-from pathlib import Path
-from django.db import transaction
 import gzip
+from pathlib import Path
 from collections.abc import Callable, Iterator
 from typing import Any, TextIO
+
+from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
+
+from find_genotype.models import Sample, Chromosome, Assembly, Coordinate, Genotype
+
 
 def dot_to_none(value: str, to_type: Callable = str) -> Any:
     if value == ".":
         return None
     return to_type(value)
-    
+
+
 def take_batch(iterator: Iterator, batch_size: int) -> list:
     batch = []
     for i in iterator:
@@ -18,6 +22,7 @@ def take_batch(iterator: Iterator, batch_size: int) -> list:
         if len(batch) == batch_size:
             return batch
     return batch
+
 
 def parse_header_contig(line: str) -> dict[str, str]:
     line = line.removeprefix("##contig=<").removesuffix(">")
@@ -28,6 +33,7 @@ def parse_header_contig(line: str) -> dict[str, str]:
 
     return fields
 
+
 def open_vcf(path: Path) -> TextIO:
     if not path.is_file():
         raise CommandError(f"File {path} does not exist.")
@@ -37,26 +43,27 @@ def open_vcf(path: Path) -> TextIO:
         open_function = open
     return open_function(path, "rt")
 
+
 def parse_header(file: TextIO) -> tuple[dict[str, int | None], str, list[str]]:
-    chrom_len_dict = {}
-    assembly = ''
+    chrom_lengths = {}
+    assembly = ""
     samples = []
     for line in file:
         if line.startswith("#"):
             line = line.rstrip("\n")
             if line.startswith("##contig") and line:
-                parsed_header = parse_header_contig(line)
-                chrom = parsed_header.get("ID")
-                length = int(parsed_header.get("length")) if parsed_header.get("length") else None
-                chrom_len_dict[chrom] = length
-                if assembly == '':
-                    assembly = parsed_header.get("assembly")
+                contig_fields = parse_header_contig(line)
+                chrom = contig_fields.get("ID")
+                length = int(contig_fields.get("length")) if contig_fields.get("length") else None
+                chrom_lengths[chrom] = length
+                if assembly == "":
+                    assembly = contig_fields.get("assembly")
             if line.startswith("#CHROM") and line:
                 samples =  line.split("\t")[9:]
                 break
-    return chrom_len_dict, assembly, samples
-        
-        
+    return chrom_lengths, assembly, samples
+
+
 def iter_genotypes(file: TextIO, get_chrom: Callable, samples: list[Sample]) -> Iterator[tuple[Coordinate, list[Genotype]]]:
     for line_number, line in enumerate(file, start=1):
         line = line.rstrip("\n")
@@ -66,9 +73,9 @@ def iter_genotypes(file: TextIO, get_chrom: Callable, samples: list[Sample]) -> 
                 raise CommandError(f"Got {len(columns)} columns in line {line_number}, expected {len(samples) + 9}.")
             chrom, pos, uid, ref, alt, qual, filt, info_raw, format_keys, *sample_cols = columns
             pos = int(pos)
-            qual_value=dot_to_none(qual, float)
-            filter_value=dot_to_none(filt)
-            info_value=dot_to_none(info_raw)
+            qual_value = dot_to_none(qual, float)
+            filter_value = dot_to_none(filt)
+            info_value = dot_to_none(info_raw)
             coord = Coordinate(chromosome=get_chrom(chrom), pos=pos, uid=dot_to_none(uid),
                              ref=ref, alt=alt)
             genotypes = []
@@ -85,6 +92,7 @@ def iter_genotypes(file: TextIO, get_chrom: Callable, samples: list[Sample]) -> 
                             depth=dp, allel_depth_all=adall, allel_depth_nofilt=ad,
                             genotype_quality=gq, qual=qual_value, filter=filter_value, info=info_value))
             yield coord, genotypes
+
 
 def save_coordinates_and_link(batch: list) -> list[Genotype]:
     coords_by_key = {}
@@ -105,25 +113,25 @@ def save_coordinates_and_link(batch: list) -> list[Genotype]:
         known_coords[key] = coord
     to_create = []
     for key, (coord, genotypes) in coords_by_key.items():
-        if not key in known_coords:
+        if key not in known_coords:
             to_create.append(coord)
             known_coords[key] = coord
     Coordinate.objects.bulk_create(to_create)
-    gen_list = []
+    linked_genotypes = []
     for key, (coord, genotypes) in coords_by_key.items():
-        for gen in genotypes:
-            gen.coordinate = known_coords[key]
-            gen_list.append(gen)
-    return gen_list
-            
-                    
+        for genotype in genotypes:
+            genotype.coordinate = known_coords[key]
+            linked_genotypes.append(genotype)
+    return linked_genotypes
+
+
 class Command(BaseCommand):
     help = "Extract vcf file and pull it into Genotype model."
-    
+
     def add_arguments(self, parser):
         parser.add_argument("path_to_vcf", help="Enter path to vcf file")
         parser.add_argument("--assembly", default=None, help="Assembly name, e.g. GRCh38")
-        
+
     def handle(self, *args, **options) -> None:
         path_to_vcf = Path(options["path_to_vcf"])
         with open_vcf(path_to_vcf) as vcf:
@@ -135,8 +143,8 @@ class Command(BaseCommand):
             if len(samples) == 0:
                 raise CommandError(f"File {path_to_vcf.name} has no sample columns.")
             with transaction.atomic():
-                assembly_obj, created_asm = Assembly.objects.get_or_create(assembly_uid=assembly)
-                chrom_obj_dict = {}   
+                assembly_obj, _ = Assembly.objects.get_or_create(assembly_uid=assembly)
+                chrom_obj_dict = {}
                 for chrom, length in chrom_lengths.items():
                     chrom_obj, _ = Chromosome.objects.get_or_create(assembly=assembly_obj, chrom=chrom, defaults={"length": length})
                     chrom_obj_dict[chrom] = chrom_obj
@@ -145,13 +153,13 @@ class Command(BaseCommand):
                         return chrom_obj_dict[name]
                     chrom_obj, _ = Chromosome.objects.get_or_create(assembly=assembly_obj, chrom=name)
                     chrom_obj_dict[name] = chrom_obj
-                    return chrom_obj 
+                    return chrom_obj
                 sample_objs = []
                 for sample_name in samples:
                     sample_obj, created_samp = Sample.objects.get_or_create(sample_uid=sample_name, defaults={"file_name": path_to_vcf.name})
                     if not created_samp:
                         raise CommandError(f"Sample {sample_name} is already in database.")
-                    sample_objs.append(sample_obj)    
+                    sample_objs.append(sample_obj)
                 gen_iter = iter_genotypes(vcf, get_chrom, sample_objs)
                 total_loaded = 0
                 while True:
