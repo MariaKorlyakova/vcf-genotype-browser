@@ -1,6 +1,7 @@
-# большие данные — не для гита
+# VCF data — too large for git, except the small test fixtures
 *.vcf
 *.vcf.gz
+!tests/data/*.vcf
 
 # Python
 __pycache__/
@@ -15,10 +16,11 @@ db.sqlite3
 /staticfiles/
 /media/
 
-# редактор / ОС
+# Editors and OS
 .vscode/
 .idea/
 .DS_Store
 
-#ruff
+# Tooling
 .ruff_cache/
+.coverage

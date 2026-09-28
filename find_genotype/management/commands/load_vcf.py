@@ -189,7 +189,8 @@ class Command(BaseCommand):
                     if name in chrom_obj_dict:
                         return chrom_obj_dict[name]
                     chrom_obj, _ = Chromosome.objects.get_or_create(
-                        assembly=assembly_obj, name=name,
+                        assembly=assembly_obj,
+                        name=name,
                         defaults={"length": chrom_lengths.get(name)},
                     )
                     chrom_obj_dict[name] = chrom_obj

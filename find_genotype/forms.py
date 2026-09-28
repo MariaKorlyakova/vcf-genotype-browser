@@ -19,6 +19,4 @@ class GenotypeSearchForm(forms.Form):
         start = cleaned_data.get("start")
         end = cleaned_data.get("end")
         if start and end and end < start:
-            raise ValidationError(
-                "Start coordinate should be smaller or equal to end"
-            )
+            raise ValidationError("Start coordinate should be smaller or equal to end")

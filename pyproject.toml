@@ -3,3 +3,6 @@ exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 ignore = ["RUF012"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
