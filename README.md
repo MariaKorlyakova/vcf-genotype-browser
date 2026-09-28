@@ -112,9 +112,9 @@ pytest --cov=find_genotype --cov-report=term-missing
 ```
 
 The suite checks form validation, the loader (row counts, a second sample reusing existing
-coordinates, a repeated sample being rejected) and the search page (filtering by region and by
-sample). It runs on small VCF fixtures from `tests/data/` and takes under a second. Current
-coverage is 95%.
+coordinates, a repeated sample being rejected, per-sample `QUAL`/`FILTER`, gzipped input) and the
+search page (opening with no query, filtering by region and by sample). It runs on small VCF
+fixtures from `tests/data/` and takes under a second. Current coverage is 96%.
 
 ## Development
 

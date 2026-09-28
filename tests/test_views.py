@@ -10,6 +10,14 @@ VCF_002 = Path(__file__).parent / "data" / "sample_002.vcf"
 
 
 @pytest.mark.django_db
+def test_page_opens_without_search_params(client):
+    response = client.get("/genotypes/", {})
+    assert response.status_code == 200
+    assert response.context["page"] is None
+    assert not response.context["form"].errors
+
+
+@pytest.mark.django_db
 def test_search_finds_genotypes(client):
     call_command("load_vcf", str(VCF))
     chrom_number = Chromosome.objects.get(name="chr1").pk
