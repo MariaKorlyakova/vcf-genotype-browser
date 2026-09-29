@@ -9,15 +9,15 @@ def genotype_search(request):
     form = GenotypeSearchForm(request.GET or None)
     page = None
     if form.is_valid():
-        f = form.cleaned_data
+        data = form.cleaned_data
         genotypes = Genotype.objects.select_related(
             "coordinate__chromosome", "sample"
         ).filter(
-            coordinate__pos__range=(f["start"], f["end"]),
-            coordinate__chromosome=f["chrom"],
+            coordinate__pos__range=(data["start"], data["end"]),
+            coordinate__chromosome=data["chrom"],
         )
-        if f["sample"] is not None:
-            genotypes = genotypes.filter(sample=f["sample"])
+        if data["sample"] is not None:
+            genotypes = genotypes.filter(sample=data["sample"])
         paginator = Paginator(genotypes, 50)
         page = paginator.get_page(request.GET.get("page"))
     return render(

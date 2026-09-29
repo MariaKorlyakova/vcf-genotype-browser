@@ -10,6 +10,8 @@ from find_genotype.models import Assembly, Chromosome, Coordinate, Genotype, Sam
 VCF = Path(__file__).parent / "data" / "sample.vcf"
 VCF_002 = Path(__file__).parent / "data" / "sample_002.vcf"
 VCF_lowq = Path(__file__).parent / "data" / "sample_lowqual.vcf"
+VCF_mult = Path(__file__).parent / "data" / "sample_multi.vcf"
+VCF_shift = Path(__file__).parent / "data" / "sample_shifted.vcf"
 
 
 @pytest.mark.django_db
@@ -66,3 +68,39 @@ def test_gzipped_file_loads(tmp_path):
     assert Sample.objects.count() == 1
     assert Coordinate.objects.count() == 10
     assert Genotype.objects.count() == 10
+
+
+@pytest.mark.django_db
+def test_multi_sample_file_creates_genotype_per_sample():
+    call_command("load_vcf", str(VCF_mult))
+    assert Sample.objects.count() == 2
+    assert Coordinate.objects.count() == 10
+    assert Genotype.objects.count() == 20
+
+
+@pytest.mark.django_db
+def test_duplicate_record_is_rejected(tmp_path):
+    VCF_dupl = tmp_path / "sample_duplicate.vcf"
+    lines = VCF.read_text().splitlines(keepends=True)
+    VCF_dupl.write_text("".join(lines + [lines[-1]]))
+    with pytest.raises(CommandError, match="Duplicate record"):
+        call_command("load_vcf", str(VCF_dupl))
+    assert Coordinate.objects.count() == 0
+    assert Sample.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_chromosome_position_range_is_stored():
+    call_command("load_vcf", str(VCF))
+    chrom = Chromosome.objects.get(name="chr1")
+    assert chrom.first_pos == 783006
+    assert chrom.last_pos == 801143
+    call_command("load_vcf", str(VCF_shift))
+    chrom = Chromosome.objects.get(name="chr1")
+    assert chrom.first_pos == 783006
+    assert chrom.last_pos == 1801143
+
+
+def test_missing_file_is_rejected():
+    with pytest.raises(CommandError, match="does not exist"):
+        call_command("load_vcf", "no_such_file.vcf")

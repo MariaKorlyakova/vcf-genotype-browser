@@ -26,7 +26,7 @@ class Genotype(models.Model):
                 fields=["coordinate", "sample"], name="unique_genotype"
             )
         ]
-        ordering = ["coordinate__pos", "sample"]
+        ordering = ["coordinate__pos", "sample", "id"]
 
     def __str__(self):
         return f"{self.sample} {self.coordinate}"
@@ -60,6 +60,8 @@ class Chromosome(models.Model):
     )
     name = models.TextField()
     length = models.IntegerField(null=True)
+    first_pos = models.IntegerField(null=True)
+    last_pos = models.IntegerField(null=True)
 
     class Meta:
         constraints = [

@@ -4,7 +4,8 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from django.db.models import Max, Min
 
 from find_genotype.models import Assembly, Chromosome, Coordinate, Genotype, Sample
 
@@ -44,13 +45,15 @@ def open_vcf(path: Path) -> TextIO:
     return open_function(path, "rt")
 
 
-def parse_header(file: TextIO) -> tuple[dict[str, int | None], str, list[str]]:
+def parse_header(file: TextIO) -> tuple[dict[str, int | None], str, list[str], int]:
     chrom_lengths = {}
     assembly = ""
     samples = []
+    line_counter = 0
     for line in file:
         if line.startswith("#"):
             line = line.rstrip("\n")
+            line_counter += 1
             if line.startswith("##contig") and line:
                 contig_fields = parse_header_contig(line)
                 chrom = contig_fields.get("ID")
@@ -65,13 +68,13 @@ def parse_header(file: TextIO) -> tuple[dict[str, int | None], str, list[str]]:
             if line.startswith("#CHROM") and line:
                 samples = line.split("\t")[9:]
                 break
-    return chrom_lengths, assembly, samples
+    return chrom_lengths, assembly, samples, line_counter
 
 
 def iter_genotypes(
-    file: TextIO, get_chrom: Callable, samples: list[Sample]
+    file: TextIO, get_chrom: Callable, samples: list[Sample], line_counter: int
 ) -> Iterator[tuple[Coordinate, list[Genotype]]]:
-    for line_number, line in enumerate(file, start=1):
+    for line_number, line in enumerate(file, start=line_counter + 1):
         line = line.rstrip("\n")
         if not line.startswith("#") and line:
             columns = line.split("\t")
@@ -131,15 +134,22 @@ def iter_genotypes(
 
 def save_coordinates_and_link(batch: list) -> list[Genotype]:
     coords_by_key = {}
-    positions = []
+    positions = set()
     chromosome_ids = set()
     for coord, genotypes in batch:
         key = (coord.chromosome_id, coord.pos, coord.ref, coord.alt)
         if key in coords_by_key:
-            coords_by_key[key][1].extend(genotypes)
+            _, stored_genotypes = coords_by_key[key]
+            stored_samples = {g.sample_id for g in stored_genotypes}
+            for genotype in genotypes:
+                if genotype.sample_id in stored_samples:
+                    raise CommandError(
+                        f"Duplicate record for sample {genotype.sample.name} at {coord.chromosome.name}:{coord.pos}."
+                    )
+            stored_genotypes.extend(genotypes)
         else:
             coords_by_key[key] = (coord, list(genotypes))
-        positions.append(coord.pos)
+        positions.add(coord.pos)
         chromosome_ids.add(coord.chromosome_id)
     found_coords = Coordinate.objects.filter(
         chromosome_id__in=chromosome_ids, pos__in=positions
@@ -174,7 +184,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         path_to_vcf = Path(options["path_to_vcf"])
         with open_vcf(path_to_vcf) as vcf:
-            chrom_lengths, assembly, samples = parse_header(vcf)
+            chrom_lengths, assembly, samples, line_counter = parse_header(vcf)
             if options["assembly"]:
                 assembly = options["assembly"]
             if not assembly:
@@ -206,16 +216,28 @@ class Command(BaseCommand):
                             f"Sample {sample_name} is already in database."
                         )
                     sample_objs.append(sample_obj)
-                gen_iter = iter_genotypes(vcf, get_chrom, sample_objs)
+                gen_iter = iter_genotypes(vcf, get_chrom, sample_objs, line_counter)
                 total_loaded = 0
                 while True:
                     batch = take_batch(gen_iter, 3000)
                     if not batch:
                         break
                     genotypes = save_coordinates_and_link(batch)
-                    Genotype.objects.bulk_create(genotypes)
+                    try:
+                        Genotype.objects.bulk_create(genotypes)
+                    except IntegrityError:
+                        raise CommandError(
+                            "The file contains duplicate records, deduplicate it first."
+                        )
                     total_loaded += len(genotypes)
                     self.stdout.write(f"Loaded {total_loaded}")
+                for chrom_obj in chrom_obj_dict.values():
+                    borders = Coordinate.objects.filter(chromosome=chrom_obj).aggregate(
+                        first=Min("pos"), last=Max("pos")
+                    )
+                    chrom_obj.first_pos = borders["first"]
+                    chrom_obj.last_pos = borders["last"]
+                    chrom_obj.save()
             self.stdout.write(
                 self.style.SUCCESS(f"All {total_loaded} genotypes loaded.")
             )

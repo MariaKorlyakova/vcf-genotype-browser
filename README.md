@@ -44,9 +44,11 @@ find_genotype/                             the app
   management/commands/load_vcf.py          VCF loader
   templates/find_genotype/                 search page template
   migrations/                              database schema
-  models.py, forms.py, views.py
+  models.py, forms.py, views.py, admin.py
+tests/                                     test suite
+  data/                                    small VCF fixtures
 dev.yml                                    conda environment
-pyproject.toml                             ruff configuration
+pyproject.toml                             ruff and pytest configuration
 ```
 
 ## Data model
@@ -54,7 +56,7 @@ pyproject.toml                             ruff configuration
 | Model | What it holds |
 |---|---|
 | `Assembly` | reference genome build, e.g. `GRCh38` |
-| `Chromosome` | chromosome within an assembly, with its length |
+| `Chromosome` | chromosome within an assembly, with its length and the range of loaded positions |
 | `Coordinate` | position, `REF` and `ALT` — a fact about the genome |
 | `Sample` | one sample from one VCF file |
 | `Genotype` | `GT`, `DP`, `GQ`, `QUAL`, `FILTER`, `INFO` — a fact about the sample |
@@ -83,7 +85,17 @@ python manage.py load_vcf PATH [--assembly NAME]
 
 The loader reads the header first (contig lengths, sample names), then streams the data rows in
 batches of 3000. Each batch reuses coordinates that already exist and creates only the missing
-ones. The whole load runs in a single transaction, so a failure leaves no partial data behind.
+ones. After the data is in, the loader stores the first and last loaded position of every
+chromosome it touched. The whole load runs in a single transaction, so a failure leaves no
+partial data behind.
+
+A multi-sample VCF is supported: every sample column becomes its own `Genotype`, while the
+coordinates are shared. A sample that is already in the database is rejected, and so is a file in
+which the same variant appears twice for the same sample.
+
+If the header carries no assembly name, pass `--assembly` explicitly. Otherwise the data is filed
+under an assembly called `unknown`, with its own copy of every chromosome, and it will not line up
+with anything loaded before.
 
 The benchmark file above contains 3 893 341 variants across 22 chromosomes. Loading it takes
 about 7 minutes and produces a 2.3 GB SQLite database.
@@ -91,6 +103,7 @@ about 7 minutes and produces a 2.3 GB SQLite database.
 ## Search page
 
 - chromosome and sample are picked from drop-down lists, so there is nothing to mistype;
+- each chromosome is listed with the range of positions actually loaded for it;
 - the region is given as start and end positions; `start` must not be greater than `end`;
 - results are paginated, 50 rows per page;
 - the remaining VCF fields are available per row under **Read more**.
@@ -98,6 +111,17 @@ about 7 minutes and produces a 2.3 GB SQLite database.
 Coordinates are indexed by chromosome and position — the `unique_variant` constraint doubles as
 that index — so a query stays cheap on the full dataset: searching the whole of `chr1` matches
 307 854 genotypes and still renders its first page in about 0.1 s.
+
+The position ranges in the drop-down come from the `first_pos` and `last_pos` fields of
+`Chromosome`, filled during loading.
+
+## Admin
+
+The Django admin at `/admin/` lists all five models. To use it, create a superuser first:
+
+```bash
+python manage.py createsuperuser
+```
 
 ## Tests
 
@@ -112,9 +136,10 @@ pytest --cov=find_genotype --cov-report=term-missing
 ```
 
 The suite checks form validation, the loader (row counts, a second sample reusing existing
-coordinates, a repeated sample being rejected, per-sample `QUAL`/`FILTER`, gzipped input) and the
-search page (opening with no query, filtering by region and by sample). It runs on small VCF
-fixtures from `tests/data/` and takes under a second. Current coverage is 96%.
+coordinates, a repeated sample being rejected, a duplicated variant being rejected, per-sample
+`QUAL`/`FILTER`, multi-sample files, gzipped input, stored position ranges, a missing file) and
+the search page (opening with no query, filtering by region and by sample). It runs on small VCF
+fixtures from `tests/data/` and takes under a second. Current coverage is 95%.
 
 ## Development
 
@@ -134,4 +159,9 @@ ruff check .
   file. This is a deliberate trade-off: keeping them per call set would require a sixth model.
 - Loading a sample that is already in the database is rejected, so a single sample split across
   several files (one per chromosome, for example) cannot be loaded.
-- If the same variant appears twice in one file, only the last occurrence is kept.
+- A variant that appears twice in one file for the same sample is rejected as well: the loader
+  stops with an error naming the position, and nothing is written.
+- Several alternative alleles are kept as one string, exactly as the file spells them
+  (`ALT=CTTT,CTTTTT`), and are not split into separate records. Reading a genotype such as `1/2`
+  therefore means parsing that string. A dedicated `Allele` model would remove the need, at the
+  price of a sixth model and a noticeably more involved loader.

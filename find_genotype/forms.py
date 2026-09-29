@@ -1,23 +1,20 @@
 from django import forms
 from django.core.exceptions import ValidationError
-from django.db.models import Min, Max
 
 from .models import Chromosome, Sample
 
 
 class ChromosomeChoiceField(forms.ModelChoiceField):
     def label_from_instance(self, obj):
-        if obj.first is None:
+        if obj.first_pos is None:
             return obj.name
         else:
-            return f"{obj.name} ({obj.first:,} - {obj.last:,})"
+            return f"{obj.name} ({obj.first_pos:,} - {obj.last_pos:,})"
 
 
 class GenotypeSearchForm(forms.Form):
     chrom = ChromosomeChoiceField(
-        queryset=Chromosome.objects.annotate(
-            first=Min("coordinate__pos"), last=Max("coordinate__pos")
-        ),
+        queryset=Chromosome.objects.all(),
         empty_label="(Choose chromosome)",
     )
     start = forms.IntegerField(label="Input start position", min_value=1)
